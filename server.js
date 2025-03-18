@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const yahooFinance = require('yahoo-finance2').default;
+const fetch = require('node-fetch'); // Add this import
 
 const app = express();
 app.use(cors());
@@ -18,7 +19,23 @@ app.get('/vix-data', async (req, res) => {
     }
 });
 
-const PORT = 3000;
+const PORT = 3000 || process.env.PORT;
+
+// Add self-ping function
+async function pingServer() {
+    try {
+        const response = await fetch(`http://localhost:${PORT}/vix-data`);
+        if (!response.ok) {
+            throw new Error('Ping failed');
+        }
+        console.log('Self-ping successful:', new Date().toISOString());
+    } catch (error) {
+        console.error('Self-ping failed:', error);
+    }
+}
+
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+    // Start ping cycle (14.5 minutes = 870000 milliseconds)
+    setInterval(pingServer, 870000);
 });
