@@ -14,7 +14,7 @@ app.get('/', (req, res) => {
 
 app.get('/vix-data', async (req, res) => {
     try {
-        const symbols = ['^VIX9D', '^VIX', '^VIX3M', '^VIX6M'];
+        const symbols = ['^VIX9D', '^VIX', '^VIX3M', '^VIX6M', '^VVIX', '^VXN', '^VXD', '^VXGS'];
         const quotes = await Promise.all(
             symbols.map(symbol => yahooFinance.quote(symbol))
         );
