@@ -3,7 +3,6 @@
     "chartjs-plugin-datalabels": "^2.2.0",
     "cors": "^2.8.5",
     "express": "^4.21.2",
-    "node-fetch": "^3.3.2",
     "yahoo-finance2": "^2.13.3"
   },
   "name": "iframe-practice",

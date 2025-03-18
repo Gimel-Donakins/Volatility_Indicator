@@ -1,10 +1,16 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const yahooFinance = require('yahoo-finance2').default;
-const fetch = require('node-fetch'); // Add this import
 
 const app = express();
 app.use(cors());
+app.use(express.static(path.join(__dirname)));
+
+// Serve background.html at root path
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'background.html'));
+});
 
 app.get('/vix-data', async (req, res) => {
     try {
@@ -14,14 +20,14 @@ app.get('/vix-data', async (req, res) => {
         );
         res.json(quotes);
     } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error('Error fetching VIX data:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
 const PORT = 3000 || process.env.PORT;
 
-// Add self-ping function
+// Add self-ping function using native fetch
 async function pingServer() {
     try {
         const response = await fetch(`http://localhost:${PORT}/vix-data`);
