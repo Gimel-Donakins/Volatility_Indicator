@@ -25,7 +25,7 @@ app.get('/vix-data', async (req, res) => {
     }
 });
 
-const PORT = 3000 || process.env.PORT;
+const PORT = process.env.PORT || 10000;
 
 // Add self-ping function using native fetch
 async function pingServer() {
