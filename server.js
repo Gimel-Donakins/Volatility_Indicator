@@ -30,7 +30,7 @@ const PORT = 3000 || process.env.PORT;
 // Add self-ping function using native fetch
 async function pingServer() {
     try {
-        const response = await fetch(`http://localhost:${PORT}/vix-data`);
+        const response = await fetch(`https://volatilityindicator.onrender.com/vix-data`);
         if (!response.ok) {
             throw new Error('Ping failed');
         }
