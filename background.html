@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VIX Data Plot</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #000000e1; /* Dark mode background */
+        }
+        .content-container {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 100vh;
+            align-items: center;
+            padding: 20px;
+        }
+        .graph-container {
+            width: 100%;
+            height: 70vh;
+            display: flex;
+            justify-content: center;
+        }
+        #chart-container {
+            width: 70%;
+            height: 100%;
+        }
+        @keyframes rgbText {
+            0% { color: rgb(255, 251, 0); }
+            33% { color: rgb(51, 207, 51); }
+            66% { color: rgb(0, 238, 255); }
+            100% { color: rgb(255, 251, 0); }
+        }
+        @keyframes rgbBorder{
+            0% { color: rgb(255, 251, 0); }
+            33% { color: rgb(51, 207, 51); }
+            66% { color: rgb(0, 238, 255); }
+            100% { color: rgb(255, 251, 0); }
+        }
+        @keyframes rgbAnimation {
+            0% { color: rgb(255, 251, 0); }
+            33% { color: rgb(51, 207, 51); }
+            66% { color: rgb(0, 238, 255); }
+            100% { color: rgb(255, 251, 0); }
+        }
+        #table-container {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        #vixTable, #indexTable {
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border-collapse: collapse;
+            width: 70%;
+        }
+        #vixTable th, #vixTable td, #indexTable th, #indexTable td {
+            padding: 8px;
+            text-align: center;
+            border: 1px solid #444;
+        }
+        #vixTable th, #indexTable th {
+            background: rgba(0, 0, 0, 0.8);
+        }
+        #barometer-container {
+            width: 200px;
+            height: 200px;
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 40px;
+        }
+        #digital-display {
+            font-family: 'Digital-7', monospace;
+            font-size: 24px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 5px 15px;
+            border-radius: 5px;
+            margin-top: -40px;
+            animation: rgbText 10s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="content-container">
+        <div class="graph-container">
+            <div id="chart-container">
+                <canvas id="vixChart"></canvas>
+            </div>
+        </div>
+        <div id="table-container">
+            <table id="indexTable">
+                <thead>
+                    <tr>
+                        <th>Index</th>
+                        <th>Current Value</th>
+                        <th>Historical Percentile</th>
+                        <th>Long-term Median</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <table id="vixTable">
+                <thead>
+                    <tr>
+                        <th>Crossover</th>
+                        <th>Current Values</th>
+                        <th>Ratio</th>
+                        <th>Historical Percentile</th>
+                        <th>Long-term Median</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <div id="barometer-container">
+                <canvas id="barometer" width="200" height="200"></canvas>
+                <div id="digital-display">0.00%</div>
+            </div>
+        </div>
+    </div>
+    <script>
+        async function fetchData() {
+            const apiUrl = 'http://localhost:3000/vix-data';
+
+            try {
+                const response = await fetch(apiUrl);
+                if (!response.ok) {
+                    throw new Error(`Network response was not ok: ${response.statusText}`);
+                }
+                const data = await response.json();
+                console.log('Fetched data:', data);
+
+                return data.map(item => ({
+                    symbol: item.symbol,
+                    price: item.regularMarketPrice,
+                    high: item.regularMarketDayHigh,
+                    low: item.regularMarketDayLow
+                }));
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                return [];
+            }
+        }
+
+        async function loadHistoricalData() {
+            try {
+                const response = await fetch('historical_vix_data.json');
+                return await response.json();
+            } catch (error) {
+                console.error('Error loading historical data:', error);
+                return null;
+            }
+        }
+
+        function calculatePercentile(currentRatio, historicalRatios) {
+            const sortedRatios = historicalRatios.sort((a, b) => a - b);
+            const position = sortedRatios.findIndex(r => r >= currentRatio);
+            return ((position / sortedRatios.length) * 100).toFixed(2);
+        }
+
+        function calculateIndexPercentile(currentValue, historicalData) {
+            const historicalValues = historicalData.map(d => (d.open + d.close) / 2);
+            const sortedValues = historicalValues.sort((a, b) => a - b);
+            const position = sortedValues.findIndex(v => v >= currentValue);
+            return ((position / sortedValues.length) * 100).toFixed(2);
+        }
+
+        function calculateMedian(arr) {
+            const sorted = [...arr].sort((a, b) => a - b);
+            const mid = Math.floor(sorted.length / 2);
+            return sorted.length % 2 === 0 
+                ? (sorted[mid - 1] + sorted[mid]) / 2 
+                : sorted[mid];
+        }
+
+        function updateTableData(currentData, historicalData) {
+            if (!historicalData) return;
+            
+            // Update index percentiles table
+            const indexTbody = document.querySelector('#indexTable tbody');
+            indexTbody.innerHTML = '';
+            
+            const indices = ['VIX9D', 'VIX', 'VIX3M', 'VIX6M'];
+            indices.forEach(index => {
+                const currentValue = currentData.find(d => d.symbol === `^${index}`)?.price;
+                if (currentValue) {
+                    const historicalValues = historicalData.rawData[`^${index}`];
+                    const avgValues = historicalValues.map(d => (d.open + d.close) / 2);
+                    const percentile = calculateIndexPercentile(currentValue, historicalValues);
+                    const median = calculateMedian(avgValues).toFixed(2);
+                    
+                    const row = indexTbody.insertRow();
+                    row.innerHTML = `
+                        <td>${index}</td>
+                        <td>${currentValue.toFixed(2)}</td>
+                        <td>${percentile}%</td>
+                        <td>${median}</td>
+                    `;
+                }
+            });
+
+            // Update contango table
+            const pairs = [['VIX9D', 'VIX'], ['VIX', 'VIX3M'], ['VIX3M', 'VIX6M'], ['VIX', 'VIX6M']];
+            const contangoTbody = document.querySelector('#vixTable tbody');
+            contangoTbody.innerHTML = '';
+
+            pairs.forEach(([index1, index2]) => {
+                const val1 = currentData.find(d => d.symbol === `^${index1}`)?.price;
+                const val2 = currentData.find(d => d.symbol === `^${index2}`)?.price;
+                
+                if (val1 && val2) {
+                    const ratio = val1 / val2;  // Current ratio (index1/index2)
+                    const historicalPair = historicalData.contangoRatios[`${index1}_${index2}`];
+                    // Use historical ratios directly since they're already index1/index2
+                    const historicalRatios = historicalPair.map(d => d.ratio);
+                    const percentile = calculatePercentile(ratio, historicalRatios);
+                    const median = calculateMedian(historicalRatios).toFixed(3);
+                    
+                    const row = contangoTbody.insertRow();
+                    row.innerHTML = `
+                        <td>${index1}/${index2}</td>
+                        <td>${val1.toFixed(2)} / ${val2.toFixed(2)}</td>
+                        <td>${ratio.toFixed(3)}</td>
+                        <td>${percentile}%</td>
+                        <td>${median}</td>
+                    `;
+                }
+            });
+
+            // Update barometer
+            const avgPercentile = calculateAveragePercentile(currentData, historicalData);
+            updateBarometer(avgPercentile);
+        }
+
+        function updateChart(chart, data) {
+            const prices = data.map(item => item.price);
+            const highs = data.map(item => item.high);
+            const lows = data.map(item => item.low);
+
+            // Calculate contango differences
+            const contangoDiffs = prices.slice(1).map((price, i) => {
+                const prevPrice = prices[i];
+                const diff = price - prevPrice;
+                const percentage = ((price / prevPrice - 1) * 100).toFixed(2);
+                return {
+                    diff: diff.toFixed(3),
+                    percentage: percentage
+                };
+            });
+
+            chart.contangoDiffs = contangoDiffs; // Store for use in plugin
+
+            const maxPrice = Math.max(...highs);
+            const minPrice = Math.min(...lows);
+
+            chart.data.datasets[0].data = prices;
+            chart.data.datasets[1].data = highs;
+            chart.data.datasets[2].data = lows;
+
+            chart.options.scales.y.min = minPrice - 2;
+            chart.options.scales.y.max = maxPrice + 2;
+
+            chart.update();
+        }
+
+        function getRGBColor(offset = 0) {
+            const time = (Date.now() + offset) % 30000; // 3 second cycle
+            const phase = time / 30000;
+            
+            if (phase < 0.33) {
+                return `rgb(${255 * (1 - phase * 3)}, ${255 * phase * 3}, 0)`;
+            } else if (phase < 0.66) {
+                return `rgb(0, ${255 * (1 - (phase - 0.33) * 3)}, ${255 * (phase - 0.33) * 3})`;
+            } else {
+                return `rgb(${255 * (phase - 0.66) * 3}, 0, ${255 * (1 - (phase - 0.66) * 3)})`;
+            }
+        }
+
+        // Add custom plugin for arrows and text
+        const contangoPlugin = {
+            id: 'contangoArrows',
+            afterDraw: (chart, args, options) => {
+                const ctx = chart.ctx;
+                const dataset = chart.data.datasets[0];
+                const meta = chart.getDatasetMeta(0);
+                
+                if (!chart.contangoDiffs) return;
+
+                ctx.save();
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+
+                for (let i = 0; i < meta.data.length - 1; i++) {
+                    const current = meta.data[i];
+                    const next = meta.data[i + 1];
+                    const diff = chart.contangoDiffs[i];
+
+                    // Calculate midpoint
+                    const midX = (current.x + next.x) / 2;
+                    const midY = (current.y + next.y) / 2;
+                    
+                    const text = `${diff.diff} (${diff.percentage}%)`;
+                    const textMetrics = ctx.measureText(text);
+                    const padding = 5;
+                    const boxWidth = textMetrics.width + padding * 2;
+                    const boxHeight = 20;
+                    const arrowHeight = 20;
+                    
+                    // Box position (30px below midpoint)
+                    const boxY = midY + 30;
+                    
+                    // Draw upward arrow
+                    ctx.strokeStyle = dataset.borderColor(null);
+                    ctx.fillStyle = dataset.borderColor(null);
+                    ctx.beginPath();
+                    ctx.moveTo(midX, boxY); // Start at box
+                    ctx.lineTo(midX, midY); // Line to midpoint
+                    ctx.stroke();
+                    
+                    // Arrow head
+                    ctx.beginPath();
+                    ctx.moveTo(midX, midY);
+                    ctx.lineTo(midX - 5, midY + 10);
+                    ctx.lineTo(midX + 5, midY + 10);
+                    ctx.closePath();
+                    ctx.fill();
+                    
+                    // Draw box
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                    ctx.strokeStyle = dataset.borderColor(null);
+                    ctx.lineWidth = 1;
+                    ctx.fillRect(midX - boxWidth/2, boxY, boxWidth, boxHeight);
+                    ctx.strokeRect(midX - boxWidth/2, boxY, boxWidth, boxHeight);
+                    
+                    // Draw text
+                    ctx.fillStyle = dataset.borderColor(null);
+                    ctx.fillText(text, midX, boxY + boxHeight/2 + 4);
+                }
+                
+                ctx.restore();
+            }
+        };
+
+        async function initializeChart() {
+            const historicalData = await loadHistoricalData();
+            const ctx = document.getElementById('vixChart').getContext('2d');
+            const chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['^VIX9D', '^VIX', '^VIX3M', '^VIX6M'],
+                    datasets: [{
+                        label: 'VIX Data',
+                        data: [],
+                        borderColor: function(context) { return getRGBColor(); },
+                        backgroundColor: function(context) { return getRGBColor() + '20'; },
+                        borderWidth: 2, // Increased from 1
+                        pointRadius: 5,
+                        pointHoverRadius: 7,
+                        pointBackgroundColor: function(context) { return getRGBColor(); },
+                        pointBorderColor: '#000',
+                        pointStyle: 'circle'
+                    }, {
+                        label: 'High',
+                        data: [],
+                        borderColor: 'rgba(255, 165, 0, 0.8)', // Orange
+                        borderWidth: 3, // Increased from 1
+                        pointRadius: 0,
+                        fill: false,
+                        borderDash: [5, 5]
+                    }, {
+                        label: 'Low',
+                        data: [],
+                        borderColor: 'rgba(255, 255, 0, 0.8)', // Yellow
+                        borderWidth: 3, // Increased from 1
+                        pointRadius: 0,
+                        fill: false,
+                        borderDash: [5, 5]
+                    }]
+                },
+                options: {
+                    animation: {
+                        duration: 150 // disable animation for smoother color updates
+                    },
+                    layout: {
+                        padding: {
+                            left: 50 // Add padding to the left
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            ticks: {
+                                color: function(context) { return getRGBColor(); }
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                color: function(context) { return getRGBColor(); },
+                                offset: true
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const colors = {
+                                        'High': 'rgba(255, 165, 0, 0.8)',
+                                        'Low': 'rgba(255, 255, 0, 0.8)',
+                                        'VIX Data': getRGBColor()
+                                    };
+                                    context.tooltipContext = colors[context.dataset.label];
+                                    return `${context.dataset.label}: ${context.raw}`;
+                                }
+                            },
+                            titleColor: function(context) {
+                                return context[0].tooltipContext || getRGBColor();
+                            },
+                            bodyColor: function(context) {
+                                return context[0].tooltipContext || getRGBColor();
+                            }
+                        },
+                        datalabels: {
+                            color: function(context) {
+                                const colors = {
+                                    'High': 'rgba(255, 165, 0, 0.8)',
+                                    'Low': 'rgba(255, 255, 0, 0.8)',
+                                    'VIX Data': getRGBColor()
+                                };
+                                return colors[context.dataset.label];
+                            },
+                            anchor: 'end',
+                            align: 'top',
+                            formatter: function(value, context) {
+                                return value;
+                            }
+                        }
+                    }
+                },
+                plugins: [ChartDataLabels, contangoPlugin]
+            });
+
+            // Add color animation loop
+            function updateColors() {
+                chart.update('none'); // update without animation
+                requestAnimationFrame(updateColors);
+            }
+            updateColors();
+
+            const data = await fetchData();
+            updateChart(chart, data);
+            updateTableData(data, historicalData);
+
+            setInterval(async () => {
+                const newData = await fetchData();
+                updateChart(chart, newData);
+                updateTableData(newData, historicalData);
+            }, 30000); // 10 seconds
+        }
+
+        function calculateAveragePercentile(currentData, historicalData) {
+            if (!historicalData || !currentData) return 0;
+
+            const percentiles = [];
+            
+            // Get index percentiles
+            ['VIX9D', 'VIX', 'VIX3M', 'VIX6M'].forEach(index => {
+                const currentValue = currentData.find(d => d.symbol === `^${index}`)?.price;
+                if (currentValue) {
+                    const historicalValues = historicalData.rawData[`^${index}`];
+                    const percentile = parseFloat(calculateIndexPercentile(currentValue, historicalValues));
+                    percentiles.push(percentile);
+                }
+            });
+
+            // Get crossover percentiles
+            const pairs = [['VIX9D', 'VIX'], ['VIX', 'VIX3M'], ['VIX3M', 'VIX6M'], ['VIX', 'VIX6M']];
+            pairs.forEach(([index1, index2]) => {
+                const val1 = currentData.find(d => d.symbol === `^${index1}`)?.price;
+                const val2 = currentData.find(d => d.symbol === `^${index2}`)?.price;
+                if (val1 && val2) {
+                    const ratio = val1 / val2;
+                    const historicalPair = historicalData.contangoRatios[`${index1}_${index2}`];
+                    const percentile = parseFloat(calculatePercentile(ratio, historicalPair.map(d => d.ratio)));
+                    percentiles.push(percentile);
+                }
+            });
+
+            return percentiles.reduce((a, b) => a + b, 0) / percentiles.length;
+        }
+
+        function updateBarometer(percentage) {
+            const canvas = document.getElementById('barometer');
+            const ctx = canvas.getContext('2d');
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2 + 20; // Move center down slightly
+            const radius = Math.min(centerX, centerY) - 20;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw outer rim
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius + 5, Math.PI, 0, false);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#666';
+            ctx.stroke();
+
+            // Draw gauge background first
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius - 20, Math.PI, 0, false);
+            ctx.lineWidth = 20;
+            ctx.strokeStyle = '#222';
+            ctx.stroke();
+
+            // Draw colored gauge
+            const angle = Math.PI + (percentage / 100) * Math.PI;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius - 20, Math.PI, angle, false);
+            ctx.lineWidth = 20;
+            ctx.strokeStyle = getRGBColor();
+            ctx.stroke();
+
+            // Draw tick marks and labels after gauge
+            for (let i = 0; i <= 100; i += 10) {
+                const angle = Math.PI + (i / 100) * Math.PI;
+                const isMainTick = i % 20 === 0;
+                const tickLength = isMainTick ? 15 : 8;
+                
+                // Move ticks and numbers outside the gauge
+                const startX = centerX + (radius - 5) * Math.cos(angle);
+                const startY = centerY + (radius - 5) * Math.sin(angle);
+                const endX = centerX + (radius - 5 - tickLength) * Math.cos(angle);
+                const endY = centerY + (radius - 5 - tickLength) * Math.sin(angle);
+                
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(endX, endY);
+                ctx.lineWidth = isMainTick ? 2 : 1;
+                ctx.strokeStyle = '#888';
+                ctx.stroke();
+
+                if (isMainTick) {
+                    ctx.fillStyle = getRGBColor();
+                    ctx.font = '12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    // Move numbers further out
+                    const textX = centerX + (radius + 5) * Math.cos(angle);
+                    const textY = centerY + (radius + 5) * Math.sin(angle);
+                    ctx.fillText(i.toString(), textX, textY);
+                }
+            }
+
+            // Draw needle
+            const needleLength = radius - 25;
+            const needleAngle = Math.PI + (percentage / 100) * Math.PI;
+            const needleX = centerX + needleLength * Math.cos(needleAngle);
+            const needleY = centerY + needleLength * Math.sin(needleAngle);
+
+            ctx.beginPath();
+            ctx.moveTo(centerX - 5, centerY);
+            ctx.lineTo(centerX + 5, centerY);
+            ctx.lineTo(needleX, needleY);
+            ctx.closePath();
+            ctx.fillStyle = getRGBColor();
+            ctx.fill();
+
+            // Draw center hub
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 10, 0, Math.PI * 2);
+            ctx.fillStyle = '#333';
+            ctx.fill();
+            ctx.strokeStyle = getRGBColor();
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Update digital display (color handled by CSS animation)
+            document.getElementById('digital-display').textContent = `${percentage.toFixed(2)}%`;
+
+            // Request next animation frame for color updates
+            requestAnimationFrame(() => updateBarometer(percentage));
+        }  
+        initializeChart();
+    </script>
+</body>
+</html>
