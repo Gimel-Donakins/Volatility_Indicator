@@ -23,8 +23,8 @@
             padding: 20px;
         }
         .graph-container {
-            width: 100%;
-            height: 70vh;
+            width: 90dvh;
+            height: auto;
             display: flex;
             justify-content: center;
         }
@@ -378,7 +378,8 @@
                         borderWidth: 3, // Increased from 1
                         pointRadius: 0,
                         fill: false,
-                        borderDash: [5, 5]
+                        borderDash: [5, 5],
+                        hidden: true // Hide by default
                     }, {
                         label: 'Low',
                         data: [],
@@ -386,7 +387,8 @@
                         borderWidth: 3, // Increased from 1
                         pointRadius: 0,
                         fill: false,
-                        borderDash: [5, 5]
+                        borderDash: [5, 5],
+                        hidden: true // Hide by default
                     }]
                 },
                 options: {
