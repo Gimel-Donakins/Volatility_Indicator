@@ -1,7 +1,7 @@
 const fs = require('fs');
 const https = require('https');
 
-const symbols = ['^VIX9D', '^VIX', '^VIX3M', '^VIX6M', '^VVIX', '^VXN', '^VXD', '^VXGS'];
+const symbols = ['^VIX9D', '^VIX', '^VIX3M', '^VIX6M', '^VVIX'];
 const endDate = Math.floor(Date.now() / 1000);
 const startDate = endDate - (20 * 365 * 24 * 60 * 60); // 20 years ago
 

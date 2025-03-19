@@ -14,9 +14,9 @@ app.get('/', (req, res) => {
 
 app.get('/vix-data', async (req, res) => {
     try {
-        const symbols = ['^VIX9D', '^VIX', '^VIX3M', '^VIX6M', '^VVIX', '^VXN', '^VXD', '^VXGS'];
+        const vixSymbols = ['^VIX9D', '^VIX', '^VIX3M', '^VIX6M'];
         const quotes = await Promise.all(
-            symbols.map(symbol => yahooFinance.quote(symbol))
+            vixSymbols.map(symbol => yahooFinance.quote(symbol))
         );
         res.json(quotes);
     } catch (error) {
@@ -25,9 +25,22 @@ app.get('/vix-data', async (req, res) => {
     }
 });
 
+app.get('/market-data', async (req, res) => {
+    try {
+        const marketSymbols = ['^VVIX'];  // Add any additional market symbols here
+        const quotes = await Promise.all(
+            marketSymbols.map(symbol => yahooFinance.quote(symbol))
+        );
+        res.json(quotes);
+    } catch (error) {
+        console.error('Error fetching market data:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 const PORT = process.env.PORT || 10000;
 
-// Add self-ping function using native fetch thing
+// Add self-ping function using native fetch
 async function pingServer() {
     try {
         const response = await fetch(`https://volatilityindicator.onrender.com/vix-data`);
