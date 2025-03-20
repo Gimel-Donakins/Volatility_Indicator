@@ -123,7 +123,7 @@
                     <tr>
                         <th>Crossover</th>
                         <th>Current Values</th>
-                        <th>Ratio</th>
+                        <th>Difference</th>
                         <th>Historical Percentile</th>
                         <th>Long-term Median</th>
                     </tr>
@@ -134,7 +134,7 @@
             <table id="additionalTickersTable">
                 <thead>
                     <tr>
-                        <th>Ticker</th>
+                        <th>Other Factors</th>
                         <th>Current Value</th>
                         <th>Historical Percentile</th>
                         <th>Long-term Median</th>
@@ -150,8 +150,7 @@
     </div>
     <script>
         async function fetchData() {
-            const apiUrl = 'https://volatilityindicator.onrender.com/vix-data';
-            // const apiUrl = `http://localhost:10000/vix-data`;
+            const apiUrl = 'http://localhost:10000/vix-data';
 
             try {
                 const response = await fetch(apiUrl);
@@ -175,8 +174,7 @@
 
         async function fetchMarketData() {
             try {
-                const apiUrl = 'https://volatilityindicator.onrender.com/market-data';
-                // const apiUrl = `http://localhost:10000/vix-data`;
+                const apiUrl = 'http://localhost:10000/market-data';
                 const response = await fetch(apiUrl);
                 if (!response.ok) {
                     console.warn('Market data not available');
@@ -252,7 +250,7 @@
             });
 
             // Update contango table
-            const pairs = [['VIX9D', 'VIX'], ['VIX', 'VIX3M'], ['VIX3M', 'VIX6M'], ['VIX', 'VIX6M']];
+            const pairs = [['VIX9D', 'VIX'], ['VIX', 'VIX3M'], ['VIX', 'VIX6M']];
             const contangoTbody = document.querySelector('#vixTable tbody');
             contangoTbody.innerHTML = '';
 
@@ -261,17 +259,17 @@
                 const val2 = currentData.find(d => d.symbol === `^${index2}`)?.price;
                 
                 if (val1 && val2) {
-                    const difference = val2 - val1;  // Changed from ratio to difference
+                    const difference = val1 - val2;  // Changed from ratio to difference
                     const historicalPair = historicalData.contangoRatios[`${index1}_${index2}`];
                     const historicalDiffs = historicalPair.map(d => d.difference);
                     const percentile = calculatePercentile(difference, historicalDiffs);
-                    const median = calculateMedian(historicalDiffs).toFixed(2);
+                    const median = calculateMedian(historicalDiffs).toFixed(3);
                     
                     const row = contangoTbody.insertRow();
                     row.innerHTML = `
-                        <td>${index1}/${index2}</td>F
+                        <td>${index1}/${index2}</td>
                         <td>${val1.toFixed(2)} / ${val2.toFixed(2)}</td>
-                        <td>${difference.toFixed(2)}</td>
+                        <td>${difference.toFixed(3)}</td>
                         <td>${percentile}%</td>
                         <td>${median}</td>
                     `;
@@ -282,6 +280,25 @@
             const marketData = await fetchMarketData();
             const additionalTbody = document.querySelector('#additionalTickersTable tbody');
             additionalTbody.innerHTML = '';
+
+            // Calculate VIX-VOLI residual
+            const vixValue = currentData.find(d => d.symbol === '^VIX')?.price;
+            const voliValue = marketData.find(d => d.symbol === '^VOLI')?.price;
+
+            if (vixValue && voliValue) {
+                const currentDiff = vixValue - voliValue;
+                const historicalDiffs = historicalData.residuals['^VIX-VOLI'].map(d => d.avg_diff);
+                const percentile = calculateIndexPercentile(currentDiff, historicalData.residuals['^VIX-VOLI']);
+                const median = calculateMedian(historicalDiffs).toFixed(2);
+
+                const row = additionalTbody.insertRow();
+                row.innerHTML = `
+                    <td>VIX-VOLI Residual <br> (^VOLI has only been tracked since Aug 5)</td>
+                    <td>${currentDiff.toFixed(2)}</td>
+                    <td>${percentile}%</td>
+                    <td>${median}</td>
+                `;
+            }
 
             marketData.forEach(item => {
                 const currentValue = item.price;
@@ -568,30 +585,38 @@
             if (!historicalData || !currentData) return 0;
 
             const percentiles = [];
-            
+            const weights = {
+                '^VIX9D': 1,
+                '^VIX': 1,
+                '^VIX3M': 1,
+                '^VIX6M': 1,
+                '^VVIX': 1,
+                '^VOLI': 0.5  // VOLI has a half weighting
+            };
+
             // Get index percentiles
-            ['VIX9D', 'VIX', 'VIX3M', 'VIX6M'].forEach(index => {
+            ['^VIX9D', '^VIX', '^VIX3M', '^VIX6M', '^VVIX', '^VOLI'].forEach(index => {
                 const currentValue = currentData.find(d => d.symbol === `^${index}`)?.price;
                 if (currentValue) {
                     const historicalValues = historicalData.rawData[`^${index}`];
                     const percentile = parseFloat(calculateIndexPercentile(currentValue, historicalValues));
                     if (!isNaN(percentile)) {
-                        percentiles.push(percentile);
+                        percentiles.push({ percentile, weight: weights[`^${index}`] });
                     }
                 }
             });
 
             // Get crossover percentiles
-            const pairs = [['VIX9D', 'VIX'], ['VIX', 'VIX3M'], ['VIX3M', 'VIX6M'], ['VIX', 'VIX6M']];
+            const pairs = [['VIX9D', 'VIX'], ['VIX', 'VIX3M'], ['VIX', 'VIX6M']];
             pairs.forEach(([index1, index2]) => {
                 const val1 = currentData.find(d => d.symbol === `^${index1}`)?.price;
                 const val2 = currentData.find(d => d.symbol === `^${index2}`)?.price;
                 if (val1 && val2) {
-                    const ratio = val1 / val2;
+                    const difference = val1 - val2;
                     const historicalPair = historicalData.contangoRatios[`${index1}_${index2}`];
-                    const percentile = parseFloat(calculatePercentile(ratio, historicalPair.map(d => d.ratio)));
+                    const percentile = parseFloat(calculatePercentile(difference, historicalPair.map(d => d.difference)));
                     if (!isNaN(percentile)) {
-                        percentiles.push(percentile);
+                        percentiles.push({ percentile, weight: 1 });
                     }
                 }
             });
@@ -604,13 +629,15 @@
                 if (historicalValues && historicalValues.length > 0) {
                     const percentile = parseFloat(calculateIndexPercentile(currentValue, historicalValues));
                     if (!isNaN(percentile)) {
-                        percentiles.push(percentile);
+                        percentiles.push({ percentile, weight: weights[item.symbol] || 1 });
                     }
                 }
             }
 
-            // Calculate average of all percentiles, return 0 if no valid percentiles
-            return percentiles.length > 0 ? percentiles.reduce((a, b) => a + b, 0) / percentiles.length : 0;
+            // Calculate weighted average of all percentiles
+            const totalWeight = percentiles.reduce((sum, p) => sum + p.weight, 0);
+            const weightedSum = percentiles.reduce((sum, p) => sum + p.percentile * p.weight, 0);
+            return totalWeight > 0 ? weightedSum / totalWeight : 0;
         }
 
         function updateBarometer(percentage) {

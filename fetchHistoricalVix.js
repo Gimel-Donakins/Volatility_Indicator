@@ -73,7 +73,7 @@ function calculateContangoRatios(allData) {
                 
                 contangoData[pairName].push({
                     date,
-                    difference: avg2 - avg1,  // Changed from ratio to difference
+                    difference: avg1 - avg2,  // Changed from ratio to difference
                     index1_avg: avg1,
                     index2_avg: avg2
                 });
@@ -82,6 +82,31 @@ function calculateContangoRatios(allData) {
     }
 
     return contangoData;
+}
+
+function calculateResiduals(allData) {
+    const residuals = {};
+    const vixDates = new Set(allData['^VIX'].map(item => item.date));
+    
+    // Calculate VIX-VOLI residual
+    residuals['^VIX-VOLI'] = [];
+    for (const date of vixDates) {
+        const vixData = allData['^VIX']?.find(d => d.date === date);
+        const voliData = allData['^VOLI']?.find(d => d.date === date);
+        
+        if (vixData && voliData) {
+            const vixAvg = calculateDailyAverage(vixData.open, vixData.close);
+            const voliAvg = calculateDailyAverage(voliData.open, voliData.close);
+            
+            residuals['^VIX-VOLI'].push({
+                date,
+                open: vixData.open - voliData.open,
+                close: vixData.close - voliData.close,
+                avg_diff: vixAvg - voliAvg
+            });
+        }
+    }
+    return residuals;
 }
 
 async function fetchAllData() {
@@ -101,10 +126,14 @@ async function fetchAllData() {
     // Calculate contango data
     const contangoData = calculateContangoRatios(allData);
     
-    // Save to JSON file with both raw data and contango calculations
+    // Calculate residuals
+    const residualData = calculateResiduals(allData);
+    
+    // Save to JSON file with both raw data and calculations
     const outputData = {
         rawData: allData,
-        contangoRatios: contangoData
+        contangoRatios: contangoData,
+        residuals: residualData
     };
     
     fs.writeFileSync(
