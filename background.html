@@ -150,7 +150,7 @@
     </div>
     <script>
         async function fetchData() {
-            const apiUrl = 'http://localhost:10000/vix-data';
+            const apiUrl = 'https://volatilityindicator.onrender.com/vix-data';
 
             try {
                 const response = await fetch(apiUrl);
@@ -174,7 +174,7 @@
 
         async function fetchMarketData() {
             try {
-                const apiUrl = 'http://localhost:10000/market-data';
+                const apiUrl = 'https://volatilityindicator.onrender.com/market-data';
                 const response = await fetch(apiUrl);
                 if (!response.ok) {
                     console.warn('Market data not available');
