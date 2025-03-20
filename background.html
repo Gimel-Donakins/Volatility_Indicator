@@ -339,7 +339,7 @@
 
             chart.data.datasets[0].data = prices;
             chart.data.datasets[1].data = data.map(item => item.high);
-            chart.data.datasets[2].data = data.map(item.low);
+            chart.data.datasets[2].data = data.map(item => item.low);
 
             chart.options.scales.y.min = minPrice;
             chart.options.scales.y.max = maxPrice;
