@@ -1,7 +1,7 @@
 const fs = require('fs');
 const https = require('https');
 
-const symbols = ['^VIX9D', '^VIX', '^VIX3M', '^VIX6M', '^VVIX'];
+const symbols = ['^VIX9D', '^VIX', '^VIX3M', '^VIX6M', '^VVIX', '^VOLI'];
 const endDate = Math.floor(Date.now() / 1000);
 const startDate = endDate - (20 * 365 * 24 * 60 * 60); // 20 years ago
 
@@ -54,13 +54,10 @@ function calculateContangoRatios(allData) {
     const contangoPairs = {
         'VIX9D_VIX': ['^VIX9D', '^VIX'],
         'VIX_VIX3M': ['^VIX', '^VIX3M'],
-        'VIX3M_VIX6M': ['^VIX3M', '^VIX6M'],
         'VIX_VIX6M': ['^VIX', '^VIX6M']
     };
 
     const contangoData = {};
-
-    // Get all unique dates from VIX data as reference
     const vixDates = new Set(allData['^VIX'].map(item => item.date));
 
     for (const [pairName, [index1, index2]] of Object.entries(contangoPairs)) {
@@ -76,7 +73,7 @@ function calculateContangoRatios(allData) {
                 
                 contangoData[pairName].push({
                     date,
-                    ratio: avg1 / avg2,  // Changed from avg2/avg1 to avg1/avg2
+                    difference: avg2 - avg1,  // Changed from ratio to difference
                     index1_avg: avg1,
                     index2_avg: avg2
                 });

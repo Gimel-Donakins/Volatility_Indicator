@@ -150,7 +150,8 @@
     </div>
     <script>
         async function fetchData() {
-            const apiUrl = 'https://volatilityindicator.onrender.com/vix-data';
+            // const apiUrl = 'https://volatilityindicator.onrender.com/vix-data';
+            const apiUrl = `http://localhost:10000/vix-data`;
 
             try {
                 const response = await fetch(apiUrl);
@@ -174,7 +175,8 @@
 
         async function fetchMarketData() {
             try {
-                const apiUrl = 'https://volatilityindicator.onrender.com/market-data';
+                // const apiUrl = 'https://volatilityindicator.onrender.com/market-data';
+                const apiUrl = `http://localhost:10000/vix-data`;
                 const response = await fetch(apiUrl);
                 if (!response.ok) {
                     console.warn('Market data not available');
@@ -202,10 +204,10 @@
             }
         }
 
-        function calculatePercentile(currentRatio, historicalRatios) {
-            const sortedRatios = historicalRatios.sort((a, b) => a - b);
-            const position = sortedRatios.findIndex(r => r >= currentRatio);
-            return ((position / sortedRatios.length) * 100).toFixed(2);
+        function calculatePercentile(currentDiff, historicalDiffs) {
+            const sortedDiffs = historicalDiffs.sort((a, b) => a - b);
+            const position = sortedDiffs.findIndex(d => d >= currentDiff);
+            return ((position / sortedDiffs.length) * 100).toFixed(2);
         }
 
         function calculateIndexPercentile(currentValue, historicalData) {
@@ -259,18 +261,17 @@
                 const val2 = currentData.find(d => d.symbol === `^${index2}`)?.price;
                 
                 if (val1 && val2) {
-                    const ratio = val1 / val2;  // Current ratio (index1/index2)
+                    const difference = val2 - val1;  // Changed from ratio to difference
                     const historicalPair = historicalData.contangoRatios[`${index1}_${index2}`];
-                    // Use historical ratios directly since they're already index1/index2
-                    const historicalRatios = historicalPair.map(d => d.ratio);
-                    const percentile = calculatePercentile(ratio, historicalRatios);
-                    const median = calculateMedian(historicalRatios).toFixed(3);
+                    const historicalDiffs = historicalPair.map(d => d.difference);
+                    const percentile = calculatePercentile(difference, historicalDiffs);
+                    const median = calculateMedian(historicalDiffs).toFixed(2);
                     
                     const row = contangoTbody.insertRow();
                     row.innerHTML = `
-                        <td>${index1}/${index2}</td>
+                        <td>${index1}/${index2}</td>F
                         <td>${val1.toFixed(2)} / ${val2.toFixed(2)}</td>
-                        <td>${ratio.toFixed(3)}</td>
+                        <td>${difference.toFixed(2)}</td>
                         <td>${percentile}%</td>
                         <td>${median}</td>
                     `;
@@ -338,7 +339,7 @@
 
             chart.data.datasets[0].data = prices;
             chart.data.datasets[1].data = data.map(item => item.high);
-            chart.data.datasets[2].data = data.map(item => item.low);
+            chart.data.datasets[2].data = data.map(item.low);
 
             chart.options.scales.y.min = minPrice;
             chart.options.scales.y.max = maxPrice;

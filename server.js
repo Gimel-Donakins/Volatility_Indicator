@@ -27,7 +27,7 @@ app.get('/vix-data', async (req, res) => {
 
 app.get('/market-data', async (req, res) => {
     try {
-        const marketSymbols = ['^VVIX'];  // Add any additional market symbols here
+        const marketSymbols = ['^VVIX', '^VOLI'];  // Add any additional market symbols here
         const quotes = await Promise.all(
             marketSymbols.map(symbol => yahooFinance.quote(symbol))
         );
@@ -43,7 +43,7 @@ const PORT = process.env.PORT || 10000;
 // Add self-ping function using native fetch
 async function pingServer() {
     try {
-        const response = await fetch(`https://volatilityindicator.onrender.com/vix-data`);
+        const response = await fetch('http://localhost:10000/vix-data');
         if (!response.ok) {
             throw new Error('Ping failed');
         }
